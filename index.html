@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>姓名貼排版工具 (文字自由調整版)</title>
+<title>姓名貼排版工具 (支援自訂字體上傳)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+TC:wght@700&family=Noto+Serif+TC:wght@700&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+
 <style>
   body { font-family: sans-serif; display: flex; flex-wrap: wrap; margin: 20px; background-color: #f4f4f9; gap: 20px; }
   .controls { width: 340px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: fit-content; }
@@ -35,13 +40,10 @@
   .input-group { display: flex; align-items: center; gap: 8px; margin-top: 5px; width: 90%; }
   .input-group input { width: 50%; margin-top: 0; }
   
-  /* 新增滑桿專用樣式 */
   .slider-group { display: flex; align-items: center; gap: 5px; margin-top: 5px; width: 95%; font-size: 13px; font-weight: normal; color: #555;}
   .slider-group input[type="range"] { flex-grow: 1; cursor: pointer; margin: 0 5px; }
 
   button { width: 100%; font-size: 16px; font-weight: bold; padding: 12px; margin-top: 20px; border: none; border-radius: 4px; cursor: pointer; transition: 0.2s; }
-  .btn-generate { background: #4CAF50; color: white; }
-  .btn-generate:hover { background: #45a049; }
   .btn-download { background: #008CBA; color: white; margin-top: 10px; }
   .btn-download:hover { background: #007bb5; }
   #statusText { font-size: 14px; color: #d32f2f; font-weight: bold; margin-top: 15px; line-height: 1.5; background: #ffebee; padding: 10px; border-radius: 4px; }
@@ -81,7 +83,11 @@
       <input type="file" id="bgImages" accept="image/*" multiple>
     </label>
     
-    <label>5. 中文姓名與排版: 
+    <label>5. 上傳自訂字體 (.ttf / .otf): 
+      <input type="file" id="fontFile" accept=".ttf,.otf">
+    </label>
+
+    <label>6. 中文姓名與排版: 
       <input type="text" id="zhName" value="王小明" oninput="generate()">
       <div class="slider-group">
         大小 <input type="range" id="zhSize" min="10" max="80" value="42" oninput="generate()">
@@ -91,7 +97,7 @@
       </div>
     </label>
     
-    <label>6. 英文姓名與排版: 
+    <label>7. 英文姓名與排版: 
       <input type="text" id="enName" value="Ming Wang" oninput="generate()">
       <div class="slider-group">
         大小 <input type="range" id="enSize" min="10" max="60" value="25" oninput="generate()">
@@ -101,18 +107,20 @@
       </div>
     </label>
 
-    <label>7. 共同設定 (顏色/字體): 
+    <label>8. 共同設定 (顏色/字體): 
       <div class="color-row">
         <input type="color" id="textColor" value="#333333" onchange="generate()" oninput="generate()">
       </div>
       <select id="fontFamily" onchange="generate()" style="margin-top:8px;">
-        <option value='sans-serif'>系統黑體</option>
-        <option value='"DFKai-sb", "BiauKai", "Kaiti TC", cursive'>標楷體</option>
-        <option value='serif'>系統明體</option>
+        <option value="'Noto Sans TC', sans-serif">思源黑體 (Google Fonts)</option>
+        <option value="'Noto Serif TC', serif">思源宋體 (Google Fonts)</option>
+        <option value="'Ma Shan Zheng', cursive">馬善政毛筆體 (Google Fonts)</option>
+        <option value="'ZCOOL KuaiLe', cursive">站酷快樂體 (Google Fonts)</option>
+        <option value='sans-serif'>系統預設黑體</option>
       </select>
     </label>
     
-    <label>8. 貼紙尺寸 (寬 x 高 cm): 
+    <label>9. 貼紙尺寸 (寬 x 高 cm): 
       <div class="input-group">
         <input type="number" id="widthCm" value="3" step="0.1" oninput="generate()">
         <span style="font-weight: normal; font-size: 12px;">x</span>
@@ -120,7 +128,7 @@
       </div>
     </label>
 
-    <label>9. 裁切間距 (左右 x 上下 mm): 
+    <label>10. 裁切間距 (左右 x 上下 mm): 
       <div class="input-group">
         <input type="number" id="spacingX" value="10" step="1" oninput="generate()">
         <span style="font-weight: normal; font-size: 12px;">x</span>
@@ -139,6 +147,43 @@
 
 <script>
   let loadedImages = [];
+  let customFontName = 'CustomUploadedFont';
+
+  // 處理自訂字體上傳
+  document.getElementById('fontFile').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async function(event) {
+      try {
+        const fontBuffer = event.target.result;
+        const fontFace = new FontFace(customFontName, fontBuffer);
+        await fontFace.load();
+        document.fonts.add(fontFace);
+
+        // 自動將選單切換到剛上傳的自訂字體
+        const select = document.getElementById('fontFamily');
+        
+        // 檢查選單中是否已經存在自訂選項，沒有的話就新增一個
+        let customOption = document.querySelector('option[value="CustomUploadedFont"]');
+        if (!customOption) {
+          customOption = document.createElement('option');
+          customOption.value = customFontName;
+          select.insertBefore(customOption, select.firstChild);
+        }
+        customOption.text = `自訂字體: ${file.name}`;
+        select.value = customFontName;
+
+        generate();
+        alert(`字體「${file.name}」載入成功！`);
+      } catch (err) {
+        alert("字體載入失敗，請確認上傳的是有效的 .ttf 或 .otf 檔案。");
+        console.error(err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
 
   document.getElementById('bgImages').addEventListener('change', function(e) {
     const files = Array.from(e.target.files);
@@ -181,7 +226,9 @@
     return Math.round((mm / MM_PER_INCH) * DPI); 
   }
 
-  function generate() {
+  async function generate() {
+    await document.fonts.ready;
+
     const canvas = document.getElementById('previewCanvas');
     const ctx = canvas.getContext('2d');
 
@@ -223,7 +270,6 @@
     const stickerBgColor = document.getElementById('stickerBgColor').value;
     const isStickerTransparent = document.getElementById('stickerTransparent').checked;
 
-    // 取得滑桿設定的大小與垂直位置百分比
     const zhSizePct = parseFloat(document.getElementById('zhSize').value) / 100;
     const zhPosYPct = parseFloat(document.getElementById('zhPosY').value) / 100;
     const enSizePct = parseFloat(document.getElementById('enSize').value) / 100;
@@ -252,7 +298,6 @@
       `📐 像素：${paperWidthPx} x ${paperHeightPx} px<br>` +
       `🏷️ 排版：左右 ${cols} 行 x 上下 ${rows} 列 (共 ${totalStickers} 張)`;
 
-    // 依據滑桿計算實際字體像素大小
     const zhFontSize = stickerHeightPx * zhSizePct;
     const enFontSize = stickerHeightPx * enSizePct;
 
@@ -273,16 +318,12 @@
       }
 
       sCtx.textAlign = 'center';
-      
-      // ★ 將對齊基準改為垂直置中，這樣滑桿百分比才能完美對應位置
       sCtx.textBaseline = 'middle'; 
       sCtx.fillStyle = textColor;
       
-      // 繪製中文
       sCtx.font = `bold ${zhFontSize}px ${fontFamily}`;
       sCtx.fillText(zhName, stickerWidthPx / 2, stickerHeightPx * zhPosYPct);
       
-      // 繪製英文
       sCtx.font = `bold ${enFontSize}px Arial, ${fontFamily}`;
       sCtx.fillText(enName, stickerWidthPx / 2, stickerHeightPx * enPosYPct);
       
